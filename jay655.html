@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simple E-commerce</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+  <!-- Header -->
+  <header class="bg-white shadow p-4 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-indigo-600">MyShop</h1>
+    <nav id="navbar" class="space-x-4"></nav>
+  </header>
+
+  <!-- Main App -->
+  <main id="app" class="p-6 max-w-6xl mx-auto"></main>
+
+  <script>
+    // --- Basic State ---
+    let currentPage = 'login';
+    let isLoggedIn = false;
+    let isAdmin = false;
+    let currentUser = '';
+    let currentCategory = 'All';
+    let selectedProduct = null;
+    let cart = [];
+    let minPrice = 0;
+    let maxPrice = 1000;
+    let minRating = 0;
+
+    // --- Products with Real Images ---
+    let products = [
+      { id: 1, name: 'Phone', category: 'Electronics', price: 499, image: 'https://m.media-amazon.com/images/I/71ZDY57yTQL._AC_SL1500_.jpg', desc: 'High-performance smartphone with long battery life.', rating: 4.5, offer: 0, approved: true },
+      { id: 2, name: 'Laptop', category: 'Electronics', price: 899, image: 'https://m.media-amazon.com/images/I/71S8U9VzLTL._AC_SL1500_.jpg', desc: 'Lightweight laptop for work and entertainment.', rating: 4.2, offer: 10, approved: true },
+      { id: 3, name: 'Headphones', category: 'Accessories', price: 99, image: 'https://m.media-amazon.com/images/I/61CGHv6kmWL._AC_SL1500_.jpg', desc: 'Noise-cancelling wireless headphones with deep bass.', rating: 4.8, offer: 5, approved: true },
+      { id: 4, name: 'Sneakers', category: 'Fashion', price: 120, image: 'https://thumbs.dreamstime.com/z/d-colourful-sneaker-shoe-splashed-colored-liquid-white-background-generative-ai-high-quality-illustration-282714064.jpg', desc: 'Comfortable and stylish running sneakers.', rating: 3.9, offer: 0, approved: true },
+      { id: 5, name: 'Book', category: 'Books', price: 25, image: 'https://m.media-amazon.com/images/I/81eB+7+CkUL._AC_UL1500_.jpg', desc: 'A bestselling inspirational novel.', rating: 4.0, offer: 0, approved: true },
+      { id: 6, name: 'Smart Watch', category: 'Electronics', price: 199, image: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6360/6360447ld.jpg', desc: 'Fitness smart watch with heart rate and sleep tracking.', rating: 4.6, offer: 15, approved: true },
+      { id: 7, name: 'Backpack', category: 'Accessories', price: 49, image: 'https://images.puma.com/image/upload/f_auto,q_auto,b_rgb:fafafa,w_750,h_750/global/092920/01/fnd/IND/fmt/png/teamGOAL-23-Football-Backpack-22L', desc: 'Durable waterproof travel backpack.', rating: 4.3, offer: 0, approved: true }
+    ];
+
+    const categories = ['All', 'Electronics', 'Accessories', 'Fashion', 'Books'];
+
+    // --- Navigation ---
+    function navigate(page) {
+      currentPage = page;
+      render();
+    }
+
+    function logout() {
+      isLoggedIn = false;
+      isAdmin = false;
+      currentUser = '';
+      currentCategory = 'All';
+      cart = [];
+      navigate('login');
+    }
+
+    // --- Navbar ---
+    function renderNavbar() {
+      const navbar = document.getElementById('navbar');
+      if (!isLoggedIn) {
+        navbar.innerHTML = `<button onclick="navigate('login')" class="text-indigo-600">Login</button>`;
+      } else {
+        navbar.innerHTML = `
+          <button onclick="navigate('home')" class="hover:text-indigo-600">Home</button>
+          <button onclick="navigate('order')" class="hover:text-indigo-600">Orders</button>
+          <button onclick="navigate('profile')" class="hover:text-indigo-600">Profile</button>
+          ${isAdmin ? `<button onclick="navigate('admin')" class="hover:text-indigo-600">Admin</button>` : ''}
+          <button onclick="logout()" class="text-red-500 hover:underline">Logout</button>
+        `;
+      }
+    }
+
+    // --- Login Page ---
+    function renderLoginPage() {
+      app.innerHTML = `
+        <div class="flex justify-center items-center min-h-[70vh]">
+          <form onsubmit="handleLogin(event)" class="bg-white p-8 rounded shadow w-full max-w-sm">
+            <h2 class="text-2xl font-bold mb-4 text-center">Login</h2>
+            <input type="text" id="username" placeholder="Username" required class="w-full p-2 border mb-3 rounded" />
+            <input type="password" id="password" placeholder="Password" required class="w-full p-2 border mb-4 rounded" />
+            <button type="submit" class="w-full bg-indigo-600 text-white p-2 rounded hover:bg-indigo-700">Login</button>
+          </form>
+        </div>
+      `;
+    }
+
+    function handleLogin(event) {
+      event.preventDefault();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value.trim();
+
+      if (username && password) {
+        isLoggedIn = true;
+        currentUser = username;
+        isAdmin = username.toLowerCase() === 'admin';
+        navigate('home');
+      } else {
+        alert('Enter valid credentials');
+      }
+    }
+
+    // --- Home Page ---
+    function renderHomePage() {
+      const filtered = products.filter(p =>
+        p.approved &&
+        (currentCategory === 'All' || p.category === currentCategory) &&
+        p.price >= minPrice && p.price <= maxPrice &&
+        p.rating >= minRating
+      );
+
+      const categoryButtons = categories.map(cat => `
+        <button onclick="setCategory('${cat}')" 
+          class="px-3 py-1 rounded-full border ${cat === currentCategory ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-indigo-100'}">
+          ${cat}
+        </button>
+      `).join(' ');
+
+      const productHTML = filtered.map(p => {
+        const discountedPrice = p.offer ? (p.price * (1 - p.offer / 100)).toFixed(2) : p.price;
+        const stars = '⭐'.repeat(Math.round(p.rating));
+        return `
+          <div class="bg-white p-4 rounded shadow flex flex-col">
+            <img src="${p.image}" alt="${p.name}" onclick="showProductDetails(${p.id})" 
+              class="w-full h-56 object-cover mb-3 rounded-lg cursor-pointer hover:opacity-80 transition-all duration-300">
+            <div class="flex-1">
+              <h3 class="font-bold">${p.name}</h3>
+              <p class="text-yellow-500">${stars} (${p.rating})</p>
+              ${p.offer > 0 ? `<p class="text-red-500 line-through">$${p.price}</p>` : ''}
+              <p class="text-gray-700 font-semibold">$${discountedPrice}</p>
+            </div>
+            <button onclick="addToCart(${p.id})" class="mt-3 bg-indigo-600 text-white px-4 py-1 rounded hover:bg-indigo-700">Add to Cart</button>
+          </div>
+        `;
+      }).join('');
+
+      app.innerHTML = `
+        <h2 class="text-3xl font-bold mb-4 text-gray-800">Products</h2>
+        <div class="mb-6 flex flex-wrap gap-2">${categoryButtons}</div>
+        <div class="flex flex-wrap gap-4 mb-6 items-center">
+          <input type="number" id="minPrice" placeholder="Min Price" class="p-2 border rounded w-32" value="${minPrice}">
+          <input type="number" id="maxPrice" placeholder="Max Price" class="p-2 border rounded w-32" value="${maxPrice}">
+          <select id="minRating" class="p-2 border rounded">
+            <option value="0">All Ratings</option>
+            <option value="3">3⭐ and above</option>
+            <option value="4">4⭐ and above</option>
+            <option value="4.5">4.5⭐ and above</option>
+          </select>
+          <button onclick="applyFilters()" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Apply Filters</button>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">${productHTML}</div>
+      `;
+    }
+
+    function setCategory(cat) {
+      currentCategory = cat;
+      renderHomePage();
+    }
+
+    function applyFilters() {
+      minPrice = Number(document.getElementById('minPrice').value) || 0;
+      maxPrice = Number(document.getElementById('maxPrice').value) || 10000;
+      minRating = Number(document.getElementById('minRating').value) || 0;
+      renderHomePage();
+    }
+
+    function showProductDetails(id) {
+      const product = products.find(p => p.id === id);
+      if (!product) return;
+
+      const discountedPrice = product.offer ? (product.price * (1 - product.offer / 100)).toFixed(2) : product.price;
+      const stars = '⭐'.repeat(Math.round(product.rating));
+
+      app.innerHTML = `
+        <div class="bg-white p-6 rounded shadow max-w-lg mx-auto">
+          <img src="${product.image}" alt="${product.name}" class="w-full h-72 object-cover rounded-lg mb-4 shadow">
+          <h2 class="text-2xl font-bold mb-2">${product.name}</h2>
+          <p class="text-yellow-500 mb-2">${stars} (${product.rating})</p>
+          <p class="text-sm text-indigo-500 mb-2">${product.category}</p>
+          <p class="text-gray-700 mb-4">${product.desc}</p>
+          ${product.offer > 0 ? `<p class="text-red-500 line-through">$${product.price}</p>` : ''}
+          <p class="text-xl font-semibold mb-4">$${discountedPrice}</p>
+          <div class="flex gap-4">
+            <button onclick="addToCart(${product.id})" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Add to Cart</button>
+            <button onclick="navigate('home')" class="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">Back</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function addToCart(id) {
+      const product = products.find(p => p.id === id);
+      const existing = cart.find(i => i.id === id);
+      if (existing) existing.qty++;
+      else cart.push({ ...product, qty: 1 });
+      alert(`${product.name} added to cart!`);
+    }
+
+    // --- Order Page ---
+    function renderOrderPage() {
+      if (cart.length === 0) {
+        app.innerHTML = `<p class="text-center text-gray-600 mt-10">No items in cart.</p>`;
+        return;
+      }
+
+      const orderHTML = cart.map(i => `
+        <div class="flex justify-between items-center bg-white p-4 rounded shadow mb-2">
+          <span>${i.name} (x${i.qty})</span>
+          <span class="font-bold">$${i.price * i.qty}</span>
+        </div>
+      `).join('');
+
+      const total = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
+
+      app.innerHTML = `
+        <h2 class="text-3xl font-bold mb-6 text-gray-800">Your Orders</h2>
+        ${orderHTML}
+        <div class="mt-4 p-4 bg-gray-200 rounded text-right font-semibold">Total: $${total}</div>
+        <button onclick="clearCart()" class="mt-4 bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Clear Cart</button>
+      `;
+    }
+
+    function clearCart() {
+      cart = [];
+      renderOrderPage();
+    }
+
+    // --- Profile Page ---
+    function renderProfilePage() {
+      app.innerHTML = `
+        <div class="max-w-md mx-auto bg-white p-6 rounded shadow">
+          <h2 class="text-3xl font-bold mb-4 text-gray-800">Profile</h2>
+          <p><strong>Username:</strong> ${currentUser}</p>
+          <p><strong>Role:</strong> ${isAdmin ? 'Administrator' : 'User'}</p>
+          <button onclick="navigate('home')" class="mt-6 bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Back to Home</button>
+        </div>
+      `;
+    }
+
+    // --- Admin Page ---
+    function renderAdminPage() {
+      if (!isAdmin) {
+        app.innerHTML = `<p class="text-center text-red-600 mt-10">Access Denied. Admin only.</p>`;
+        return;
+      }
+
+      app.innerHTML = `
+        <h2 class="text-3xl font-bold mb-6 text-gray-800">Admin Panel</h2>
+
+        <!-- Add Product -->
+        <div class="bg-white p-6 rounded shadow mb-6">
+          <h3 class="text-xl font-semibold mb-4">Add New Product</h3>
+          <form onsubmit="addProduct(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input type="text" id="pname" placeholder="Product Name" required class="border p-2 rounded">
+            <input type="text" id="pcategory" placeholder="Category" required class="border p-2 rounded">
+            <input type="number" id="pprice" placeholder="Price" required class="border p-2 rounded">
+            <input type="number" id="prating" placeholder="Rating (0-5)" step="0.1" class="border p-2 rounded">
+            <input type="text" id="pimage" placeholder="Image URL" class="border p-2 rounded">
+            <textarea id="pdesc" placeholder="Description" class="border p-2 rounded md:col-span-2"></textarea>
+            <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 md:col-span-2">Add Product</button>
+          </form>
+        </div>
+
+        <!-- Manage Products -->
+        <div class="bg-white p-6 rounded shadow">
+          <h3 class="text-xl font-semibold mb-2">Manage Products</h3>
+          ${products.map(p => `
+            <div class="border-b py-2 flex justify-between items-center">
+              <div>
+                <strong>${p.name}</strong> - $${p.price} (${p.category})
+                ${p.offer ? `<span class='text-green-600'>[Offer: ${p.offer}%]</span>` : ''}
+                ${!p.approved ? `<span class='text-red-600'>(Not Approved)</span>` : ''}
+              </div>
+              <div class="space-x-2">
+                <button onclick="toggleApproval(${p.id})" class="px-2 py-1 border rounded text-sm ${p.approved ? 'bg-gray-200' : 'bg-green-200'}">${p.approved ? 'Hide' : 'Approve'}</button>
+                <button onclick="setOffer(${p.id})" class="px-2 py-1 border rounded text-sm bg-yellow-200">Offer</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function addProduct(e) {
+      e.preventDefault();
+      const name = document.getElementById('pname').value.trim();
+      const category = document.getElementById('pcategory').value.trim();
+      const price = Number(document.getElementById('pprice').value);
+      const rating = Number(document.getElementById('prating').value) || 0;
+      const image = document.getElementById('pimage').value.trim() || 'https://placehold.co/300x200?text=New+Product';
+      const desc = document.getElementById('pdesc').value.trim() || 'No description available.';
+
+      if (!name || !category || !price) {
+        alert('Please fill all required fields!');
+        return;
+      }
+
+      const newProduct = {
+        id: products.length + 1,
+        name,
+        category,
+        price,
+        rating,
+        image,
+        desc,
+        offer: 0,
+        approved: false
+      };
+      products.push(newProduct);
+      alert('Product added successfully! Approval required.');
+      renderAdminPage();
+    }
+
+    function toggleApproval(id) {
+      const p = products.find(x => x.id === id);
+      if (!p) return;
+      p.approved = !p.approved;
+      renderAdminPage();
+    }
+
+    function setOffer(id) {
+      const p = products.find(x => x.id === id);
+      if (!p) return;
+      const offer = prompt(`Enter offer percentage for ${p.name} (0-100):`, p.offer);
+      if (offer !== null && !isNaN(offer)) {
+        p.offer = Number(offer);
+        alert(`Offer updated for ${p.name}`);
+        renderAdminPage();
+      }
+    }
+
+    // --- Render Controller ---
+    function render() {
+      renderNavbar();
+
+      if (!isLoggedIn && currentPage !== 'login') {
+        navigate('login');
+        return;
+      }
+
+      switch (currentPage) {
+        case 'login': renderLoginPage(); break;
+        case 'home': renderHomePage(); break;
+        case 'order': renderOrderPage(); break;
+        case 'profile': renderProfilePage(); break;
+        case 'admin': renderAdminPage(); break;
+      }
+    }
+
+    render();
+  </script>
+</body>
+</html>
